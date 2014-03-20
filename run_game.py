@@ -173,7 +173,6 @@ class Hero(pygame.sprite.Sprite):
         self.set_animation('idle')
 
     def set_frame(self, frame):
-        print(frame)
         self.animation_timer, frame = frame
         self.image, axis = frame
         self.axis = axis.copy()
