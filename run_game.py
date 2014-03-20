@@ -78,23 +78,22 @@ class Game:
 
         hero = self.actors['hero']
         bx, by = self.map_buffer.get_size()
-        cx_, cy_, cz_ = hero.body.bbox.topcenter
+        cx_, cy_, cz_ = hero.body.bbox.bottomcenter
         cx = cy_
         cy = cz_ - 72
         for actor in self.actors.values():
             rect = self.physicsgroup.toRect(actor.body.bbox)
-            x, y = rect.topleft
             xx, yy = rect.topleft
             xx = xx - cx + (bx / 2)
             yy = yy - cy + (by / 2)
-            x = x - cx + (bx / 2) + hero.axis.y
-            y = y - cy + (by / 2) + hero.axis.z
+            x = xx + hero.axis.y
+            y = yy + hero.axis.z
             d, w, h = hero.body.bbox.size
             sprites.append((actor.image, pygame.Rect(x, y, w, h), 0))
 
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
 
-        pygame.draw.rect(self.map_buffer, (0, 255, 0, 128), (xx, yy, w, h), 1)
+        #pygame.draw.rect(self.map_buffer, (0, 255, 0, 128), (xx, yy-40, w, h), 1)
 
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
 
@@ -127,6 +126,10 @@ class Game:
         for actor in self.actors.values():
             actor.update(dt)
 
+        hero = self.actors['hero']
+        if not hero.alive:
+            self.new_hero()
+
     def run(self):
         clock = pygame.time.Clock()
         self.running = True
@@ -148,16 +151,55 @@ class Hero(pygame.sprite.Sprite):
     sprite_sheet = 'elisa-spritesheet1.png'
     name = 'hero'
 
+    image_animations = [
+        ('idle',   ((10, 10, 34, 44, -2, -42), )),
+        ('attack', ((34, 255, 52, 54, 0, -48), )),
+    ]
+
     def __init__(self):
         bbox = physics.BBox((0, 0, 0, 32, 32, 40))
         self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
-        self.axis = physics.Vector3(0, -8, -8)
+        self.animations = {}
+        self.state = set()
+        self.axis = None
+        self.image = None
+        self.alive = True
+        self.load_animations()
+        self.animation_timer = 0
 
+
+    def load_animations(self):
         s = load_image(self.sprite_sheet)
-        self.image = pygame.Surface((54, 54))
-        self.image.blit(s, (0, 0), (4, 4, 54, 54))
-        self.image.set_colorkey(self.image.get_at((0, 0)))
-        self.state = set(['idle'])
+
+        self.animations = {}
+        for name, tiles in self.image_animations:
+            frames = []
+            for x1, y1, w, h, ax, ay in tiles:
+                image = pygame.Surface((w, h))
+                image.blit(s, (0, 0), (x1, y1, w, h))
+                image.set_colorkey(image.get_at((0, 0)))
+                frames.append((image, physics.Vector3(0, ax, ay)))
+            self.animations[name] = frames
+
+        self.image, self.axis = self.animations['idle'][0]
+        self.state.add('idle')
+
+    def update(self, dt):
+        if self.animation_timer > 0:
+            self.animation_timer -= dt
+            if self.animation_timer <= 0:
+                self.animation_timer = 0
+                self.image, self.axis = self.animations['idle'][0]
+
+        if 'attacking' in self.state:
+            self.animation_timer = 160
+            self.state.remove('attacking')
+            self.image, self.axis = self.animations['attack'][0]
+
+        print(self.body.bbox.bottom)
+
+        if self.body.bbox.bottom > 1800:
+            self.alive = False
 
     def handle_input(self, event):
         # big ugly bunch of if statements... poor man's state machine
@@ -185,6 +227,8 @@ class Hero(pygame.sprite.Sprite):
                 elif button == P1_UP and 'jumping' not in self.state:
                     self.state.add('jumping')
                     self.body.vel.z = -3
+                elif button == P1_ACTION1:
+                    self.state.add('attacking')
 
         elif 'walking' in self.state:
             if event.type == KEYUP:
