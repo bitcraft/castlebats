@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" width="100" height="100" tilewidth="16" tileheight="16">
+ <tileset firstgid="1" name="twilight-tiles" tilewidth="16" tileheight="16">
+  <image source="twilight-tiles.png" trans="6f6d51" width="256" height="256"/>
+ </tileset>
+ <layer name="Tile Layer 1" width="100" height="100">
+  <data encoding="base64" compression="zlib">
+   eJzt1jlKg1EYheFfbHQHuh2nBTgtwAltndDWaQFOC3BCO8u4O0/gL8IlNwmSBIvngbc5JNVHwm0aAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/rPltJJWB3xmqfjcWrsfpqM+MVnraSNtpq203e4X6TN9pcuemKydtJv20n46aPfuPTrpp3GPaTpOJ+k0naXzdu/e47JPTNZVuk436TbdtXt5j07jHtNwnx7SY3pKz+3ee4/vxu9jWl7Sa3pL7+mj3f1f/V3tzVrus5Xvz6X5EWO42pu1tpcW0uKIMVztzVrbS+4xXrU3a23vNdO4x7jV3qy1veQe41V7s9b2knuMV+3NWttL7jHYL+7zS7Q=
+  </data>
+ </layer>
+ <layer name="Tile Layer 2" width="100" height="100">
+  <data encoding="base64" compression="zlib">
+   eJzt1stNAkAYhVGwCijBOoQGRCkAkQIQLMBXAYAUgEqdXBJWrgzBzCRzTvJltjf5N9PpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFxOL/X/Ic7jHnVxj7q4R13coy7He1z/yj3K6aabNEjD03uJOM9tGqW7dJ/GZec0b5Ie0jQ9plnZOc2bp6e0SMv0XHZO817Sa3pL7+mj7JzmrdI6bdJn2pad07xd+krf6Sfty85pyvFve/WHAACgBgfbMiFP
+  </data>
+ </layer>
+ <objectgroup name="Walls" width="100" height="100">
+  <object x="448" y="1488" width="176" height="96"/>
+  <object x="192" y="1488" width="176" height="16"/>
+  <object x="272" y="1280" width="352" height="112"/>
+  <object x="432" y="1536" width="16" height="16"/>
+ </objectgroup>
+ <objectgroup name="Actors" width="100" height="100">
+  <object name="hero" x="208" y="1456" width="16" height="32"/>
+ </objectgroup>
+</map>
