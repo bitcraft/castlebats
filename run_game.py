@@ -76,18 +76,25 @@ class Game:
 
         self.draw_bg(self.map_buffer)
 
+        hero = self.actors['hero']
         bx, by = self.map_buffer.get_size()
-        cx_, cy_, cz_ = self.actors['hero'].body.bbox.topcenter
+        cx_, cy_, cz_ = hero.body.bbox.topcenter
         cx = cy_
         cy = cz_ - 72
         for actor in self.actors.values():
             rect = self.physicsgroup.toRect(actor.body.bbox)
             x, y = rect.topleft
-            x = x - cx + (bx / 2)
-            y = y - cy + (by / 2)
-            sprites.append((actor.image, pygame.Rect(x, y, 54, 54), 0))
+            xx, yy = rect.topleft
+            xx = xx - cx + (bx / 2)
+            yy = yy - cy + (by / 2)
+            x = x - cx + (bx / 2) + hero.axis.y
+            y = y - cy + (by / 2) + hero.axis.z
+            d, w, h = hero.body.bbox.size
+            sprites.append((actor.image, pygame.Rect(x, y, w, h), 0))
 
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
+
+        pygame.draw.rect(self.map_buffer, (0, 255, 0, 128), (xx, yy, w, h), 1)
 
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
 
@@ -142,14 +149,15 @@ class Hero(pygame.sprite.Sprite):
     name = 'hero'
 
     def __init__(self):
-        bbox = physics.BBox((0, 0, 0, 32, 54, 54))
+        bbox = physics.BBox((0, 0, 0, 32, 32, 40))
         self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
+        self.axis = physics.Vector3(0, -8, -8)
 
         s = load_image(self.sprite_sheet)
         self.image = pygame.Surface((54, 54))
         self.image.blit(s, (0, 0), (4, 4, 54, 54))
         self.image.set_colorkey(self.image.get_at((0, 0)))
-        self.state = 'idle'
+        self.state = set(['idle'])
 
     def handle_input(self, event):
         # big ugly bunch of if statements... poor man's state machine
@@ -158,27 +166,39 @@ class Hero(pygame.sprite.Sprite):
         except (KeyError, AttributeError):
             return
 
-        if event.type == KEYDOWN:
-            if button == P1_UP:
-                self.body.vel.z = -4
+        if abs(self.body.vel.z) < .1:
+            try:
+                self.state.remove('jumping')
+            except KeyError:
+                pass
 
-        if self.state == 'idle':
+        if 'idle' in self.state:
             if event.type == KEYDOWN:
                 if button == P1_LEFT:
-                    self.state = 'walking'
+                    self.state.remove('idle')
+                    self.state.add('walking')
                     self.body.vel.y = -2
                 elif button == P1_RIGHT:
-                    self.state = 'walking'
+                    self.state.remove('idle')
+                    self.state.add('walking')
                     self.body.vel.y = 2
+                elif button == P1_UP and 'jumping' not in self.state:
+                    self.state.add('jumping')
+                    self.body.vel.z = -3
 
-        elif self.state == 'walking':
+        elif 'walking' in self.state:
             if event.type == KEYUP:
                 if button == P1_LEFT:
-                    self.state = 'idle'
+                    self.state.remove('walking')
+                    self.state.add('idle')
                     self.body.vel.y = 0
                 elif button == P1_RIGHT:
-                    self.state = 'idle'
+                    self.state.remove('walking')
+                    self.state.add('idle')
                     self.body.vel.y = 0
+                elif button == P1_UP and 'jumping' not in self.state:
+                    self.state.add('jumping')
+                    self.body.vel.z = -3
 
 
 class Level:
