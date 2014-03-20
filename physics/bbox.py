@@ -23,7 +23,6 @@ class BBox(list):
 
     __slots__ = []
 
-
     def copy(self):
         return BBox(self)
 

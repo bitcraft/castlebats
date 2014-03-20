@@ -15,7 +15,7 @@ class PlatformerMixin(object):
 
     def rectToBody(self, rect):
         newbbox = (0, rect.x, rect.y, 1, rect.width, rect.height)
-        return physicsbody.Body3(newbbox, (0,0,0), (0,0,0), 0)
+        return physicsbody.Body3(newbbox, (0, 0, 0), (0, 0, 0), 0)
 
 
 class AdventureMixin(object):
@@ -30,7 +30,7 @@ class AdventureMixin(object):
 
     def rectToBody(self, rect):
         newbbox = (rect.x, rect.y, 0, rect.width, rect.height, 0)
-        return physicsbody.Body3(newbbox, (0,0,0), (0,0,0), 0)
+        return physicsbody.Body3(newbbox, (0, 0, 0), (0, 0, 0), 0)
 
 
 class PhysicsGroup:
@@ -62,26 +62,28 @@ class PhysicsGroup:
 
     def __init__(self, scaling, timestep, gravity, bodies, geometry, precision=2):
         self.scaling = scaling
-        self.gravity = euclid.Vector3(0,0,gravity)
+        self.gravity = euclid.Vector3(0, 0, gravity)
         self.bodies = bodies
         self.precision = precision
         self.sleeping = []
-        self.staticBodies = []
-        [ self.scaleBody(b, scaling) for b in self.bodies ]
+        self.static_bodies = []
+        self.timestep = None
+        self.gravity_delta = None
+        self.ground_friction = None
+        [ self.scale_body(b, scaling) for b in self.bodies ]
 
         rects = []
         for bbox in geometry:
-            body = physicsbody.Body3(bbox, (0,0,0), (0,0,0), 0)
-            self.scaleBody(body, scaling)
-            self.staticBodies.append(body)
+            body = physicsbody.Body3(bbox, (0, 0, 0), (0, 0, 0), 0)
+            self.scale_body(body, scaling)
+            self.static_bodies.append(body)
             rects.append(self.toRect(body.bbox))
 
         self.geometry = quadtree.FastQuadTree(rects)
-
-        self.setTimestep(timestep)
+        self.set_timestep(timestep)
 
     def __iter__(self):
-        return itertools.chain(self.bodies, self.staticBodies)
+        return itertools.chain(self.bodies, self.static_bodies)
 
     def update(self, time):
         for body in (b for b in self.bodies if b not in self.sleeping):
@@ -89,8 +91,8 @@ class PhysicsGroup:
             body.vel += body.acc * self.timestep
             x, y, z = body.vel
 
-            if not x==0:
-                if not self.moveBody(body, (x, 0, 0)):
+            if not x == 0:
+                if not self.move_body(body, (x, 0, 0)):
                     if abs(body.vel.x) > .2:
                         body.acc.x = 0.0
                         body.vel.x = -body.vel.x * .2
@@ -98,8 +100,8 @@ class PhysicsGroup:
                         body.acc.x = 0.0
                         body.vel.x = 0.0
 
-            if not y==0:
-                if not self.moveBody(body, (0, y, 0)):
+            if not y == 0:
+                if not self.move_body(body, (0, y, 0)):
                     if abs(body.vel.y) > .2:
                         body.acc.y = 0.0
                         body.vel.y = -body.vel.y * .2
@@ -108,7 +110,7 @@ class PhysicsGroup:
                         body.vel.y = 0.0
 
             if z > 0:
-                if not self.moveBody(body, (0, 0, z)):
+                if not self.move_body(body, (0, 0, z)):
                     if abs(body.vel.z) > 2.5:
                         body.acc.z = 0.0
                         body.vel.z = -body.vel.z * .2
@@ -117,7 +119,7 @@ class PhysicsGroup:
                         body.vel.z = 0.0
  
             elif z < 0:
-                self.moveBody(body, (0, 0, z))
+                self.move_body(body, (0, 0, z))
 
             if body.bbox.z == 0:
                 body.vel.x = body.vel.x * self.ground_friction
@@ -128,24 +130,24 @@ class PhysicsGroup:
                 round(body.vel.z, 1) == 0.0) and body.bbox.z == 0:
                 self.sleeping.append(body)
 
-    def scaleBody(self, body, scale):
+    def scale_body(self, body, scale):
         body.bbox.scale(scale, scale, scale)
 
-    def dynamicBodies(self):
+    def dynamic_bodies(self):
         return iter(self.bodies)
 
-    def wakeBody(self, body):
+    def wake_body(self, body):
         try:
             self.sleeping.remove(body)
-        except:
+        except IndexError:
             pass
 
-    def setTimestep(self, time):
+    def set_timestep(self, time):
         self.timestep = time
         self.gravity_delta = self.gravity * time
         self.ground_friction = pow(.0001, self.timestep)
 
-    def moveBody(self, body, point, clip=True):
+    def move_body(self, body, point, clip=True):
         x, y, z = point
         body.bbox.move(x, y, z)
 
@@ -164,7 +166,7 @@ class PhysicsGroup:
             bbox = body.bbox
             for other in (b for b in self.bodies if b is not body):
                 if bbox.collidebbox(other.bbox):
-                    if self.moveBody(other, (x, y, z)):
+                    if self.move_body(other, (x, y, z)):
                         return True
                     else:
                         body.bbox.move(-x, -y, -z)

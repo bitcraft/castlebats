@@ -4,8 +4,8 @@ from . import euclid, vec, bbox
 class Body2(object):
     def __init__(self, thisbbox, acc, vel, o):
         self.bbox = bbox.BBox(thisbbox)
-        self.acc = vec.Vec2d(acc)
-        self.vel = vec.Vec2d(vel)
+        self.acc = vec.Vec2(acc)
+        self.vel = vec.Vec2(vel)
         self.o = o
 
 
