@@ -4,4 +4,3 @@ import pytmx
 import pyscroll
 import pymunk
 
-
