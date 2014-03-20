@@ -4,6 +4,7 @@ import os
 import pytmx
 import pygame
 import physics
+import itertools
 from pygame.locals import *
 import pyscroll
 from castlebats.buttons import *
@@ -83,12 +84,12 @@ class Game:
         cy = cz_ - 72
         for actor in self.actors.values():
             rect = self.physicsgroup.toRect(actor.body.bbox)
+            d, w, h = hero.body.bbox.size
             xx, yy = rect.topleft
             xx = xx - cx + (bx / 2)
             yy = yy - cy + (by / 2)
-            x = xx + hero.axis.y
-            y = yy + hero.axis.z
-            d, w, h = hero.body.bbox.size
+            x = xx - hero.axis.y + (w / 2)
+            y = yy - hero.axis.z
             sprites.append((actor.image, pygame.Rect(x, y, w, h), 0))
 
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
@@ -152,8 +153,9 @@ class Hero(pygame.sprite.Sprite):
     name = 'hero'
 
     image_animations = [
-        ('idle',   ((10, 10, 34, 44, -2, -42), )),
-        ('attack', ((34, 255, 52, 54, 0, -48), )),
+        ('idle',      100, ((10, 10, 34, 44, 15, 42), )),
+        ('attacking', 200, ((34, 254, 52, 52, 25, 48), )),
+        ('walking',   300, ((304, 132, 36, 40, 15, 38), (190, 130, 28, 44, 14, 40), (74, 132, 32, 40, 15, 38), (190, 130, 28, 44, 14, 40)))
     ]
 
     def __init__(self):
@@ -164,42 +166,74 @@ class Hero(pygame.sprite.Sprite):
         self.axis = None
         self.image = None
         self.alive = True
-        self.load_animations()
+        self.flip = True
         self.animation_timer = 0
+        self.current_animation = None
+        self.load_animations()
+        self.set_animation('idle')
 
+    def set_frame(self, frame):
+        print(frame)
+        self.animation_timer, frame = frame
+        self.image, axis = frame
+        self.axis = axis.copy()
+        if self.flip:
+            w, h = self.image.get_size()
+            self.image = pygame.transform.flip(self.image, 1, 0)
+            self.axis.y = w - self.axis.y
 
     def load_animations(self):
         s = load_image(self.sprite_sheet)
 
         self.animations = {}
-        for name, tiles in self.image_animations:
+        for name, ttl, tiles in self.image_animations:
             frames = []
             for x1, y1, w, h, ax, ay in tiles:
                 image = pygame.Surface((w, h))
                 image.blit(s, (0, 0), (x1, y1, w, h))
                 image.set_colorkey(image.get_at((0, 0)))
                 frames.append((image, physics.Vector3(0, ax, ay)))
-            self.animations[name] = frames
+            self.animations[name] = ttl, frames
 
-        self.image, self.axis = self.animations['idle'][0]
+        self.set_animation('idle', itertools.repeat)
         self.state.add('idle')
+
+    def set_animation(self, name, func=None):
+        self.animation_timer, animation = self.animations[name]
+
+        if func:
+            if len(animation) == 1:
+                animation = func(animation[0])
+            else:
+                animation = func(animation)
+
+        self.current_animation = zip(itertools.repeat(self.animation_timer), animation)
+        self.set_frame(next(self.current_animation))
 
     def update(self, dt):
         if self.animation_timer > 0:
             self.animation_timer -= dt
             if self.animation_timer <= 0:
-                self.animation_timer = 0
-                self.image, self.axis = self.animations['idle'][0]
-
-        if 'attacking' in self.state:
-            self.animation_timer = 160
-            self.state.remove('attacking')
-            self.image, self.axis = self.animations['attack'][0]
-
-        print(self.body.bbox.bottom)
+                try:
+                    self.set_frame(next(self.current_animation))
+                except StopIteration:
+                    self.set_animation('idle')
 
         if self.body.bbox.bottom > 1800:
             self.alive = False
+
+    def change_state(self, state):
+        self.state.add(state)
+
+        if 'attacking' in self.state:
+            self.set_animation('attacking')
+            self.state.remove('attacking')
+
+        elif 'walking' in self.state:
+            self.set_animation('walking', itertools.cycle)
+
+        elif 'idle' in self.state:
+            self.set_animation('idle', itertools.repeat)
 
     def handle_input(self, event):
         # big ugly bunch of if statements... poor man's state machine
@@ -218,30 +252,32 @@ class Hero(pygame.sprite.Sprite):
             if event.type == KEYDOWN:
                 if button == P1_LEFT:
                     self.state.remove('idle')
-                    self.state.add('walking')
+                    self.change_state('walking')
+                    self.flip = True
                     self.body.vel.y = -2
                 elif button == P1_RIGHT:
                     self.state.remove('idle')
-                    self.state.add('walking')
+                    self.change_state('walking')
+                    self.flip = False
                     self.body.vel.y = 2
                 elif button == P1_UP and 'jumping' not in self.state:
-                    self.state.add('jumping')
+                    self.change_state('jumping')
                     self.body.vel.z = -3
                 elif button == P1_ACTION1:
-                    self.state.add('attacking')
+                    self.change_state('attacking')
 
         elif 'walking' in self.state:
             if event.type == KEYUP:
                 if button == P1_LEFT:
                     self.state.remove('walking')
-                    self.state.add('idle')
+                    self.change_state('idle')
                     self.body.vel.y = 0
                 elif button == P1_RIGHT:
                     self.state.remove('walking')
-                    self.state.add('idle')
+                    self.change_state('idle')
                     self.body.vel.y = 0
                 elif button == P1_UP and 'jumping' not in self.state:
-                    self.state.add('jumping')
+                    self.change_state('jumping')
                     self.body.vel.z = -3
 
 
