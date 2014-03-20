@@ -42,7 +42,7 @@ class Game:
             bbox = (0, obj.x, obj.y, 0, obj.width, obj.height)
             geometry.append(bbox)
 
-        self.physicsgroup = physics.PlatformerPhysicsGroup(1, 1/60., 9.8, [], geometry)
+        self.physicsgroup = physics.PlatformerPhysicsGroup(1, 1/30., 9.8, [], geometry)
 
         self.new_hero()
 
@@ -61,7 +61,8 @@ class Game:
         self.buffer_size = self.map_buffer.get_size()
 
     def draw(self, surface):
-        self.map_layer.draw(self.map_buffer, surface.get_rect())
+        sprites = []
+
         bx, by = self.map_buffer.get_size()
         cx_, cy_, cz_ = self.actors['hero'].body.bbox.topcenter
         cx = cy_
@@ -71,7 +72,9 @@ class Game:
             x, y = rect.topleft
             x = x - cx + (bx / 2)
             y = y - cy + (by / 2)
-            self.map_buffer.blit(actor.image, (x, y))
+            sprites.append((actor.image, pygame.Rect(x, y, 56, 56), 0))
+
+        self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
 
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
 
@@ -132,13 +135,23 @@ class Hero(pygame.sprite.Sprite):
     def handle_input(self, event):
         if event.type == KEYDOWN:
             if event.key == K_UP:
-                self.body.acc = physics.Vector3(0, 0, -4)
+                self.body.vel = physics.Vector3(0, 0, -4)
             elif event.key == K_DOWN:
                 pass
             elif event.key == K_LEFT:
-                self.body.acc = physics.Vector3(0, -2, 0)
+                self.body.vel = physics.Vector3(0, -2, 0)
             elif event.key == K_RIGHT:
-                self.body.acc = physics.Vector3(0, 2, 0)
+                self.body.vel = physics.Vector3(0, 2, 0)
+
+        elif event.type == KEYUP:
+            if event.key == K_UP:
+                pass
+            elif event.key == K_DOWN:
+                pass
+            elif event.key == K_LEFT:
+                self.body.vel = physics.Vector3(0, 0, 0)
+            elif event.key == K_RIGHT:
+                self.body.vel = physics.Vector3(0, 0, 0)
 
 
 class Level:

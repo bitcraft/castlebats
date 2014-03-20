@@ -113,7 +113,7 @@ class PhysicsGroup:
                 if not self.move_body(body, (0, 0, z)):
                     if abs(body.vel.z) > 2.5:
                         body.acc.z = 0.0
-                        body.vel.z = -body.vel.z * .2
+                        body.vel.z = -body.vel.z * .05
                     else:
                         body.acc.z = 0.0
                         body.vel.z = 0.0

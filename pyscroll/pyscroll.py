@@ -34,6 +34,7 @@ class TiledMapData:
 
     @property
     def visible_layers(self):
+        print(list(self.tmx.visible_layers))
         return list(self.tmx.visible_layers)
 
     def get_tile_image(self, position):
@@ -44,11 +45,7 @@ class TiledMapData:
 
         x, y, l = map(int, position)
         try:
-            t = self.tmx.get_tile_image(x, y, l)
-            if t:
-                return t
-            else:
-                return self.default_image
+            return self.tmx.get_tile_image(x, y, l)
         except ValueError:
             return self.default_image
 
@@ -273,7 +270,9 @@ class BufferedRenderer:
             for i in range(self.blits_per_update):
                 try:
                     x, y, l = next(self.queue)
-                    bufblit(get_tile((x, y, l)), (x * tw - ltw, y * th - tth))
+                    tile = get_tile((x, y, l))
+                    if tile:
+                        bufblit(tile, (x * tw - ltw, y * th - tth))
                 except StopIteration:
                     self.queue = None
                     break
@@ -326,7 +325,8 @@ class BufferedRenderer:
                 layers = range(layer + 1, len(self.data.visible_layers))
                 for l in layers:
                     tile = get_tile((x / tw + left, y / th + top, l))
-                    surblit(tile, (x - ox, y - oy))
+                    if tile:
+                        surblit(tile, (x - ox, y - oy))
 
         surface.set_clip(original_clip)
 
@@ -347,7 +347,8 @@ class BufferedRenderer:
             ltw = self.view.left * tw
             tth = self.view.top * th
             get_tile = self.data.get_tile_image
-            [blit(get_tile((x, y, l)), (x * tw - ltw, y * th - tth)) for (x, y, l) in self.queue]
+            images = filter(lambda x: x[1], ((i, get_tile(i)) for i in self.queue))
+            [blit(image, (x*tw-ltw, y*th-tth)) for ((x , y, l), image) in images]
             self.queue = None
 
     def redraw(self):
