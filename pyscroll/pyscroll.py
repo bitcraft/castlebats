@@ -34,7 +34,6 @@ class TiledMapData:
 
     @property
     def visible_layers(self):
-        print(list(self.tmx.visible_layers))
         return list(self.tmx.visible_layers)
 
     def get_tile_image(self, position):
@@ -86,6 +85,7 @@ class BufferedRenderer:
     def __init__(self, data, size):
         self.set_data(data)
         self.set_size(size)
+        self.colorkey = (0, 0, 0)
 
     def set_data(self, data):
         self.data = data
@@ -103,6 +103,8 @@ class BufferedRenderer:
         buffer_width = size[0] + self.data.tilewidth * 2
         buffer_height = size[1] + self.data.tileheight * 2
         self.buffer = pygame.Surface((buffer_width, buffer_height))
+
+        self.buffer.set_colorkey((0, 0, 0))
 
         # this is the pixel size of the entire map
         self.width = self.data.width * self.data.tilewidth
@@ -260,24 +262,30 @@ class BufferedRenderer:
         """
 
         if self.queue:
-            bufblit = self.buffer.blit
+            blit = self.buffer.blit
             get_tile = self.data.get_tile_image
             ltw = self.data.tilewidth * self.view.left
             tth = self.data.tileheight * self.view.top
             tw = self.data.tilewidth
             th = self.data.tileheight
-
-            for i in range(self.blits_per_update):
-                try:
-                    x, y, l = next(self.queue)
+            fill = self.buffer.fill
+            old_tiles = set()
+            try:
+                for x, y, l in range(self.blits_per_update):
                     tile = get_tile((x, y, l))
                     if tile:
-                        bufblit(tile, (x * tw - ltw, y * th - tth))
-                except StopIteration:
-                    self.queue = None
-                    break
+                        if l == 0:
+                            fill(self.colorkey, (x*tw-ltw, y*th-tth, tw, th))
+                        old_tiles.add((x, y, l))
+                        blit(tile, (x*tw-ltw, y*th-tth))
+                    else:
+                        if (x, y, l-1) not in old_tiles:
+                            fill(self.colorkey, (x*tw-ltw, y*th-tth, tw, th))
 
-    def draw(self, surface, rect, surfaces=[]):
+            except StopIteration:
+                self.queue = None
+
+    def draw(self, surface, rect, surfaces=[], background=None):
         """
         draw the map onto a surface.
 
@@ -344,11 +352,21 @@ class BufferedRenderer:
             tw = self.data.tilewidth
             th = self.data.tileheight
             blit = self.buffer.blit
+            fill = self.buffer.fill
             ltw = self.view.left * tw
             tth = self.view.top * th
             get_tile = self.data.get_tile_image
-            images = filter(lambda x: x[1], ((i, get_tile(i)) for i in self.queue))
-            [blit(image, (x*tw-ltw, y*th-tth)) for ((x , y, l), image) in images]
+            old_tiles = set()
+            for x, y, l in self.queue:
+                tile = get_tile((x, y, l))
+                if tile:
+                    if l == 0:
+                        fill(self.colorkey, (x*tw-ltw, y*th-tth, tw, th))
+                    old_tiles.add((x, y, l))
+                    blit(tile, (x*tw-ltw, y*th-tth))
+                else:
+                    if (x, y, l-1) not in old_tiles:
+                        fill(self.colorkey, (x*tw-ltw, y*th-tth, tw, th))
             self.queue = None
 
     def redraw(self):

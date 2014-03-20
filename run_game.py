@@ -6,9 +6,19 @@ import pygame
 import physics
 from pygame.locals import *
 import pyscroll
+from castlebats.buttons import *
 
 
 RESOURCE_PATH = 'resources'
+
+key_map = {
+    K_LEFT: P1_LEFT,
+    K_RIGHT: P1_RIGHT,
+    K_UP: P1_UP,
+    K_DOWN: P1_DOWN,
+    K_q: P1_ACTION1,
+    K_w: P1_ACTION2,
+}
 
 
 def load_map(filename):
@@ -36,13 +46,14 @@ class Game:
         self.tmx_data = load_map('level.tmx')
         map_data = pyscroll.TiledMapData(self.tmx_data)
         self.map_layer = pyscroll.BufferedRenderer(map_data, self.buffer_size)
+        self.bg = load_image('exterior-parallaxBG1.png')
 
         geometry = []
         for obj in self.tmx_data.objectgroups[0]:
             bbox = (0, obj.x, obj.y, 0, obj.width, obj.height)
             geometry.append(bbox)
 
-        self.physicsgroup = physics.PlatformerPhysicsGroup(1, 1/30., 9.8, [], geometry)
+        self.physicsgroup = physics.PlatformerPhysicsGroup(1, 1/60., 9.8, [], geometry)
 
         self.new_hero()
 
@@ -63,10 +74,12 @@ class Game:
     def draw(self, surface):
         sprites = []
 
+        self.draw_bg(self.map_buffer)
+
         bx, by = self.map_buffer.get_size()
         cx_, cy_, cz_ = self.actors['hero'].body.bbox.topcenter
         cx = cy_
-        cy = cz_
+        cy = cz_ - 72
         for actor in self.actors.values():
             rect = self.physicsgroup.toRect(actor.body.bbox)
             x, y = rect.topleft
@@ -77,6 +90,10 @@ class Game:
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
 
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
+
+    def draw_bg(self, surface):
+        surface.blit(self.bg, (0,0))
+        surface.blit(self.bg, (self.bg.get_width(),0))
 
     def handle_input(self):
         for event in pygame.event.get():
@@ -98,7 +115,7 @@ class Game:
 
     def update(self, dt):
         x, y, z = self.actors['hero'].body.bbox.topcenter
-        self.map_layer.center((y, z))
+        self.map_layer.center((y, z - 72))
         self.physicsgroup.update(dt)
         for actor in self.actors.values():
             actor.update(dt)
@@ -111,6 +128,7 @@ class Game:
             while self.running:
                 td = clock.tick(60)
                 self.handle_input()
+                self.update(td)
                 self.update(td)
                 self.draw(screen)
                 pygame.display.flip()
@@ -131,27 +149,36 @@ class Hero(pygame.sprite.Sprite):
         self.image = pygame.Surface((54, 54))
         self.image.blit(s, (0, 0), (4, 4, 54, 54))
         self.image.set_colorkey(self.image.get_at((0, 0)))
+        self.state = 'idle'
 
     def handle_input(self, event):
-        if event.type == KEYDOWN:
-            if event.key == K_UP:
-                self.body.vel = physics.Vector3(0, 0, -4)
-            elif event.key == K_DOWN:
-                pass
-            elif event.key == K_LEFT:
-                self.body.vel = physics.Vector3(0, -2, 0)
-            elif event.key == K_RIGHT:
-                self.body.vel = physics.Vector3(0, 2, 0)
+        # big ugly bunch of if statements... poor man's state machine
+        try:
+            button = key_map[event.key]
+        except (KeyError, AttributeError):
+            return
 
-        elif event.type == KEYUP:
-            if event.key == K_UP:
-                pass
-            elif event.key == K_DOWN:
-                pass
-            elif event.key == K_LEFT:
-                self.body.vel = physics.Vector3(0, 0, 0)
-            elif event.key == K_RIGHT:
-                self.body.vel = physics.Vector3(0, 0, 0)
+        if event.type == KEYDOWN:
+            if button == P1_UP:
+                self.body.vel.z = -4
+
+        if self.state == 'idle':
+            if event.type == KEYDOWN:
+                if button == P1_LEFT:
+                    self.state = 'walking'
+                    self.body.vel.y = -2
+                elif button == P1_RIGHT:
+                    self.state = 'walking'
+                    self.body.vel.y = 2
+
+        elif self.state == 'walking':
+            if event.type == KEYUP:
+                if button == P1_LEFT:
+                    self.state = 'idle'
+                    self.body.vel.y = 0
+                elif button == P1_RIGHT:
+                    self.state = 'idle'
+                    self.body.vel.y = 0
 
 
 class Level:
@@ -162,7 +189,7 @@ class Level:
 if __name__ == '__main__':
     pygame.init()
     pygame.font.init()
-    screen = init_screen(700, 700)
+    screen = init_screen(900, 600)
     pygame.display.set_caption('Castle Bats')
 
     game = Game()

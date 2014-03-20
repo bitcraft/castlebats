@@ -95,7 +95,8 @@ class PhysicsGroup:
                 if not self.move_body(body, (x, 0, 0)):
                     if abs(body.vel.x) > .2:
                         body.acc.x = 0.0
-                        body.vel.x = -body.vel.x * .2
+                        #body.vel.x = -body.vel.x * .2
+                        body.vel.x = 0.0
                     else:
                         body.acc.x = 0.0
                         body.vel.x = 0.0
@@ -104,20 +105,21 @@ class PhysicsGroup:
                 if not self.move_body(body, (0, y, 0)):
                     if abs(body.vel.y) > .2:
                         body.acc.y = 0.0
-                        body.vel.y = -body.vel.y * .2
+                        #body.vel.y = -body.vel.y * .2
+                        body.vel.y = 0.0
                     else:
                         body.acc.y = 0.0
                         body.vel.y = 0.0
 
             if z > 0:
                 if not self.move_body(body, (0, 0, z)):
-                    if abs(body.vel.z) > 2.5:
+                    if abs(body.vel.z) > .2:
                         body.acc.z = 0.0
                         body.vel.z = -body.vel.z * .05
                     else:
                         body.acc.z = 0.0
                         body.vel.z = 0.0
- 
+
             elif z < 0:
                 self.move_body(body, (0, 0, z))
 
