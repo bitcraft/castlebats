@@ -72,7 +72,7 @@ class Game:
             x, y = rect.topleft
             x = x - cx + (bx / 2)
             y = y - cy + (by / 2)
-            sprites.append((actor.image, pygame.Rect(x, y, 56, 56), 0))
+            sprites.append((actor.image, pygame.Rect(x, y, 54, 54), 0))
 
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
 
