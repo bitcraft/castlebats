@@ -11,14 +11,27 @@ from castlebats.buttons import *
 
 
 RESOURCE_PATH = 'resources'
+GRAVITY = 10.2
+TIMESTEP = 1/60.
+MOVE_POWER = 2
+JUMP_POWER = 2.5
 
-key_map = {
+KEY_MAP = {
     K_LEFT: P1_LEFT,
     K_RIGHT: P1_RIGHT,
     K_UP: P1_UP,
     K_DOWN: P1_DOWN,
     K_q: P1_ACTION1,
     K_w: P1_ACTION2,
+}
+
+SOUND_FILES = {
+    'sword': 'sword2.wav',
+}
+
+
+MUSIC_FILES = {
+    'dungeon': 'dungeon.ogg'
 }
 
 
@@ -28,6 +41,15 @@ def load_map(filename):
 
 def load_image(filename):
     return pygame.image.load(os.path.join(RESOURCE_PATH, filename))
+
+
+def load_sound(name):
+    return pygame.mixer.Sound(os.path.join(RESOURCE_PATH, SOUND_FILES[name]))
+
+
+def play_music(name):
+    pygame.mixer.music.load(os.path.join(RESOURCE_PATH, MUSIC_FILES[name]))
+    pygame.mixer.music.play(-1)
 
 
 # simple wrapper to keep the screen resizeable
@@ -54,7 +76,7 @@ class Game:
             bbox = (0, obj.x, obj.y, 0, obj.width, obj.height)
             geometry.append(bbox)
 
-        self.physicsgroup = physics.PlatformerPhysicsGroup(1, 1/60., 9.8, [], geometry)
+        self.physicsgroup = physics.PlatformerPhysicsGroup(1, TIMESTEP, GRAVITY, [], geometry)
 
         self.new_hero()
 
@@ -99,8 +121,8 @@ class Game:
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
 
     def draw_bg(self, surface):
-        surface.blit(self.bg, (0,0))
-        surface.blit(self.bg, (self.bg.get_width(),0))
+        surface.blit(self.bg, (0, 0))
+        surface.blit(self.bg, (self.bg.get_width(), 0))
 
     def handle_input(self):
         for event in pygame.event.get():
@@ -135,6 +157,8 @@ class Game:
         clock = pygame.time.Clock()
         self.running = True
 
+        play_music('dungeon')
+
         try:
             while self.running:
                 td = clock.tick(60)
@@ -147,30 +171,15 @@ class Game:
         except KeyboardInterrupt:
             self.running = False
 
+        pygame.mixer.music.stop()
 
-class Hero(pygame.sprite.Sprite):
-    sprite_sheet = 'elisa-spritesheet1.png'
-    name = 'hero'
 
-    image_animations = [
-        ('idle',      100, ((10, 10, 34, 44, 15, 42), )),
-        ('attacking', 200, ((34, 254, 52, 52, 25, 48), )),
-        ('walking',   300, ((304, 132, 36, 40, 15, 38), (190, 130, 28, 44, 14, 40), (74, 132, 32, 40, 15, 38), (190, 130, 28, 44, 14, 40)))
-    ]
-
+class CastleBatSprite(pygame.sprite.Sprite):
     def __init__(self):
-        bbox = physics.BBox((0, 0, 0, 32, 32, 40))
-        self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
-        self.animations = {}
-        self.state = set()
-        self.axis = None
-        self.image = None
-        self.alive = True
-        self.flip = True
-        self.animation_timer = 0
-        self.current_animation = None
-        self.load_animations()
-        self.set_animation('idle')
+
+    def load_sounds(self):
+        for name in self.required_sounds:
+            self.sounds[name] = load_sound(name)
 
     def set_frame(self, frame):
         self.animation_timer, frame = frame
@@ -209,6 +218,37 @@ class Hero(pygame.sprite.Sprite):
         self.current_animation = zip(itertools.repeat(self.animation_timer), animation)
         self.set_frame(next(self.current_animation))
 
+
+class Hero(pygame.sprite.Sprite):
+    sprite_sheet = 'elisa-spritesheet1.png'
+    name = 'hero'
+    required_sounds = ['sword']
+
+    image_animations = [
+        ('idle',      100, ((10, 10, 34, 44, 15, 42), )),
+        ('attacking', 200, ((34, 254, 52, 52, 25, 48), )),
+        ('walking',   300, ((304, 132, 36, 40, 15, 38),
+                            (190, 130, 28, 44, 14, 40),
+                            (74, 132, 32, 40, 15, 38),
+                            (190, 130, 28, 44, 14, 40))),
+    ]
+
+    def __init__(self):
+        bbox = physics.BBox((0, 0, 0, 32, 32, 40))
+        self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
+        self.animations = {}
+        self.sounds = {}
+        self.state = set()
+        self.axis = None
+        self.image = None
+        self.alive = True
+        self.flip = True
+        self.animation_timer = 0
+        self.current_animation = None
+        self.load_animations()
+        self.load_sounds()
+        self.set_animation('idle')
+
     def update(self, dt):
         if self.animation_timer > 0:
             self.animation_timer -= dt
@@ -225,6 +265,8 @@ class Hero(pygame.sprite.Sprite):
         self.state.add(state)
 
         if 'attacking' in self.state:
+            self.sounds['sword'].stop()
+            self.sounds['sword'].play()
             self.set_animation('attacking')
             self.state.remove('attacking')
 
@@ -237,7 +279,7 @@ class Hero(pygame.sprite.Sprite):
     def handle_input(self, event):
         # big ugly bunch of if statements... poor man's state machine
         try:
-            button = key_map[event.key]
+            button = KEY_MAP[event.key]
         except (KeyError, AttributeError):
             return
 
@@ -253,15 +295,15 @@ class Hero(pygame.sprite.Sprite):
                     self.state.remove('idle')
                     self.change_state('walking')
                     self.flip = True
-                    self.body.vel.y = -2
+                    self.body.vel.y = -MOVE_POWER
                 elif button == P1_RIGHT:
                     self.state.remove('idle')
                     self.change_state('walking')
                     self.flip = False
-                    self.body.vel.y = 2
+                    self.body.vel.y = MOVE_POWER
                 elif button == P1_UP and 'jumping' not in self.state:
                     self.change_state('jumping')
-                    self.body.vel.z = -3
+                    self.body.vel.z = -JUMP_POWER
                 elif button == P1_ACTION1:
                     self.change_state('attacking')
 
@@ -277,12 +319,14 @@ class Hero(pygame.sprite.Sprite):
                     self.body.vel.y = 0
                 elif button == P1_UP and 'jumping' not in self.state:
                     self.change_state('jumping')
-                    self.body.vel.z = -3
+                    self.body.vel.z = -JUMP_POWER
 
 
 class Level:
     def __init__(self):
         pass
+
+class Bat:
 
 
 if __name__ == '__main__':
