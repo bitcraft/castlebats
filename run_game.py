@@ -150,6 +150,9 @@ class Game:
             actor.update(dt)
 
         hero = self.actors['hero']
+        if hero.body.bbox.bottom > 1800:
+            hero.alive = False
+
         if not hero.alive:
             self.new_hero()
 
@@ -174,8 +177,25 @@ class Game:
         pygame.mixer.music.stop()
 
 
-class CastleBatSprite(pygame.sprite.Sprite):
+class CastleBatsSprite(pygame.sprite.Sprite):
     def __init__(self):
+        super().__init__()
+        self.animations = {}
+        self.sounds = {}
+        self.axis = None
+        self.image = None
+        self.flip = False
+        self.animation_timer = 0
+        self.current_animation = None
+
+    def update(self, dt):
+        if self.animation_timer > 0:
+            self.animation_timer -= dt
+            if self.animation_timer <= 0:
+                try:
+                    self.set_frame(next(self.current_animation))
+                except StopIteration:
+                    self.set_animation('idle')
 
     def load_sounds(self):
         for name in self.required_sounds:
@@ -219,7 +239,7 @@ class CastleBatSprite(pygame.sprite.Sprite):
         self.set_frame(next(self.current_animation))
 
 
-class Hero(pygame.sprite.Sprite):
+class Hero(CastleBatsSprite):
     sprite_sheet = 'elisa-spritesheet1.png'
     name = 'hero'
     required_sounds = ['sword']
@@ -234,32 +254,14 @@ class Hero(pygame.sprite.Sprite):
     ]
 
     def __init__(self):
+        super().__init__()
         bbox = physics.BBox((0, 0, 0, 32, 32, 40))
         self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
-        self.animations = {}
-        self.sounds = {}
         self.state = set()
-        self.axis = None
-        self.image = None
         self.alive = True
-        self.flip = True
-        self.animation_timer = 0
-        self.current_animation = None
         self.load_animations()
         self.load_sounds()
         self.set_animation('idle')
-
-    def update(self, dt):
-        if self.animation_timer > 0:
-            self.animation_timer -= dt
-            if self.animation_timer <= 0:
-                try:
-                    self.set_frame(next(self.current_animation))
-                except StopIteration:
-                    self.set_animation('idle')
-
-        if self.body.bbox.bottom > 1800:
-            self.alive = False
 
     def change_state(self, state):
         self.state.add(state)
@@ -322,12 +324,8 @@ class Hero(pygame.sprite.Sprite):
                     self.body.vel.z = -JUMP_POWER
 
 
-class Level:
-    def __init__(self):
-        pass
-
-class Bat:
-
+class Bat(CastleBatsSprite):
+    pass
 
 if __name__ == '__main__':
     pygame.init()
