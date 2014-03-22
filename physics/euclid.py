@@ -32,6 +32,7 @@ __revision__ = '$Revision: 37 $'
 import math
 import operator
 import types
+from .memoize import memoize
 
 # Some magic here.  If _use_slots is True, the classes will derive from
 # object and will define a __slots__ class variable.  If _use_slots is
@@ -440,6 +441,7 @@ class Vector3:
                            other.y - self[1],
                            other.z - self[2])
 
+    @memoize
     def __mul__(self, other):
         if isinstance(other, Vector3):
             # TODO component-wise mul/div in-place and on Vector2; docs.
@@ -458,6 +460,7 @@ class Vector3:
 
     __rmul__ = __mul__
 
+    @memoize
     def __imul__(self, other):
         assert type(other) in (int, float)
         self.x *= other
@@ -465,6 +468,7 @@ class Vector3:
         self.z *= other
         return self
 
+    @memoize
     def __div__(self, other):
         assert type(other) in (int, float)
         return Vector3(operator.div(self.x, other),
@@ -472,6 +476,7 @@ class Vector3:
                        operator.div(self.z, other))
 
 
+    @memoize
     def __rdiv__(self, other):
         assert type(other) in (int, float)
         return Vector3(operator.div(other, self.x),

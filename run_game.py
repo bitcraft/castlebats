@@ -5,6 +5,7 @@ import pytmx
 import pygame
 import physics
 import itertools
+import threading
 from pygame.locals import *
 import pyscroll
 from castlebats.buttons import *
@@ -12,9 +13,10 @@ from castlebats.buttons import *
 
 RESOURCE_PATH = 'resources'
 GRAVITY = 10.2
-TIMESTEP = 1/60.
+TIMESTEP = 1/120.
 MOVE_POWER = 2
-JUMP_POWER = 2.5
+JUMP_POWER = 3.5
+TARGET_FPS = 40
 
 KEY_MAP = {
     K_LEFT: P1_LEFT,
@@ -62,7 +64,13 @@ class Game:
         self.buffer_size = None
         self.map_buffer = None
         self.running = False
-        self.actors = {}
+        self.actors = set()
+        self.time = 0
+        self.hero = None
+        self.body_mapping = {}
+        self.actors_lock = threading.Lock()
+        self._add_queue = set()
+        self._remove_queue = set()
 
         self.init_buffer([screen.get_width() / 2, screen.get_height() / 2])
 
@@ -77,7 +85,6 @@ class Game:
             geometry.append(bbox)
 
         self.physicsgroup = physics.PlatformerPhysicsGroup(1, TIMESTEP, GRAVITY, [], geometry)
-
         self.new_hero()
 
     def new_hero(self):
@@ -85,39 +92,50 @@ class Game:
         obj = self.tmx_data.get_object_by_name('hero')
         hero.body.bbox.move(0, obj.x, obj.y)
         self.add_actor(hero)
+        self.hero = hero
 
     def add_actor(self, actor):
-        self.actors[actor.name] = actor
-        self.physicsgroup.bodies.append(actor.body)
+        if self.actors_lock.acquire(False):
+            actor.group = self
+            self.body_mapping[actor.body] = actor
+            self.actors.add(actor)
+            self.physicsgroup.add(actor.body)
+            self.actors_lock.release()
+        else:
+            self._add_queue.add(actor)
+
+    def remove_actor(self, actor):
+        if self.actors_lock.acquire(False):
+            actor.group = None
+            del self.body_mapping[actor.body]
+            self.actors.remove(actor)
+            self.physicsgroup.remove(actor.body)
+            self.actors_lock.release()
+        else:
+            self._remove_queue.add(actor)
 
     def init_buffer(self, size):
         self.map_buffer = pygame.Surface(size)
         self.buffer_size = self.map_buffer.get_size()
 
     def draw(self, surface):
-        sprites = []
-
         self.draw_bg(self.map_buffer)
-
-        hero = self.actors['hero']
         bx, by = self.map_buffer.get_size()
-        cx_, cy_, cz_ = hero.body.bbox.bottomcenter
+        cx_, cy_, cz_ = self.hero.body.bbox.bottomcenter
         cx = cy_
         cy = cz_ - 72
-        for actor in self.actors.values():
-            rect = self.physicsgroup.toRect(actor.body.bbox)
-            d, w, h = hero.body.bbox.size
+        sprites = []
+        for actor in self.actors:
+            rect = self.physicsgroup.to_rect(actor.body.bbox)
+            d, w, h = self.hero.body.bbox.size
             xx, yy = rect.topleft
             xx = xx - cx + (bx / 2)
             yy = yy - cy + (by / 2)
-            x = xx - hero.axis.y + (w / 2)
-            y = yy - hero.axis.z
+            x = xx - self.hero.axis.y + (w / 2)
+            y = yy - self.hero.axis.z
             sprites.append((actor.image, pygame.Rect(x, y, w, h), 0))
 
         self.map_layer.draw(self.map_buffer, surface.get_rect(), sprites)
-
-        #pygame.draw.rect(self.map_buffer, (0, 255, 0, 128), (xx, yy-40, w, h), 1)
-
         pygame.transform.scale(self.map_buffer, surface.get_size(), surface)
 
     def draw_bg(self, surface):
@@ -140,32 +158,53 @@ class Game:
                 self.init_buffer([screen.get_width() / 2, screen.get_height() / 2])
                 self.map_layer.set_size(self.buffer_size)
 
-            self.actors['hero'].handle_input(event)
+            self.hero.handle_input(event)
 
     def update(self, dt):
-        x, y, z = self.actors['hero'].body.bbox.topcenter
+        self.time += dt
+
+        x, y, z = self.hero.body.bbox.topcenter
         self.map_layer.center((y, z - 72))
         self.physicsgroup.update(dt)
-        for actor in self.actors.values():
-            actor.update(dt)
 
-        hero = self.actors['hero']
-        if hero.body.bbox.bottom > 1800:
-            hero.alive = False
+        if self.hero.body.bbox.bottom > 1800:
+            self.hero.alive = False
 
-        if not hero.alive:
-            self.new_hero()
+        with self.actors_lock:
+            for actor in self.actors:
+                if actor.alive:
+                    actor.update(dt)
+                # do not add else here
+                if not actor.alive:
+                    self.remove_actor(actor)
+                    if actor is self.hero:
+                        self.new_hero()
+
+        for actor in self._remove_queue:
+            self.remove_actor(actor)
+
+        for actor in self._add_queue:
+            self.add_actor(actor)
+
+        self._remove_queue = set()
+        self._add_queue = set()
+
+        if self.time >= 5000:
+            self.time -= 5000
+            bat = Bat()
+            bat.body.bbox[:3] = (0, self.hero.body.bbox.y - 100, self.hero.body.bbox.z)
+            self.add_actor(bat)
 
     def run(self):
         clock = pygame.time.Clock()
-        self.running = True
-
         play_music('dungeon')
+        self.running = True
 
         try:
             while self.running:
-                td = clock.tick(60)
+                td = clock.tick(40)
                 self.handle_input()
+                self.update(td)
                 self.update(td)
                 self.update(td)
                 self.draw(screen)
@@ -176,17 +215,50 @@ class Game:
 
         pygame.mixer.music.stop()
 
+    def actorcollide(self, actor):
+        # return actor colliding with another actor
+        for body in self.physicsgroup.test_collision_bbox(actor.body.bbox):
+            yield self.body_mapping[body]
+
+
+    def bboxcollide(self, bbox):
+        # return actor colliding with bbox
+        for body in self.physicsgroup.test_collision_bbox(bbox):
+            yield self.body_mapping[body]
+
 
 class CastleBatsSprite(pygame.sprite.Sprite):
+    animations = {}
+    sounds = {}
+
     def __init__(self):
         super().__init__()
-        self.animations = {}
-        self.sounds = {}
+        self.group = None
         self.axis = None
         self.image = None
         self.flip = False
+        self.alive = True
+        self.state = []
         self.animation_timer = 0
-        self.current_animation = None
+        self.current_animation = []
+
+    @classmethod
+    def load_animations(cls):
+        s = load_image(cls.sprite_sheet)
+
+        for name, ttl, tiles in cls.image_animations:
+            frames = []
+            for x1, y1, w, h, ax, ay in tiles:
+                image = pygame.Surface((w, h))
+                image.blit(s, (0, 0), (x1, y1, w, h))
+                image.set_colorkey(image.get_at((0, 0)))
+                frames.append((image, physics.Vector3(0, ax, ay)))
+            cls.animations[name] = ttl, frames
+
+    @classmethod
+    def load_sounds(cls):
+        for name in cls.required_sounds:
+            cls.sounds[name] = load_sound(name)
 
     def update(self, dt):
         if self.animation_timer > 0:
@@ -197,10 +269,6 @@ class CastleBatsSprite(pygame.sprite.Sprite):
                 except StopIteration:
                     self.set_animation('idle')
 
-    def load_sounds(self):
-        for name in self.required_sounds:
-            self.sounds[name] = load_sound(name)
-
     def set_frame(self, frame):
         self.animation_timer, frame = frame
         self.image, axis = frame
@@ -209,22 +277,6 @@ class CastleBatsSprite(pygame.sprite.Sprite):
             w, h = self.image.get_size()
             self.image = pygame.transform.flip(self.image, 1, 0)
             self.axis.y = w - self.axis.y
-
-    def load_animations(self):
-        s = load_image(self.sprite_sheet)
-
-        self.animations = {}
-        for name, ttl, tiles in self.image_animations:
-            frames = []
-            for x1, y1, w, h, ax, ay in tiles:
-                image = pygame.Surface((w, h))
-                image.blit(s, (0, 0), (x1, y1, w, h))
-                image.set_colorkey(image.get_at((0, 0)))
-                frames.append((image, physics.Vector3(0, ax, ay)))
-            self.animations[name] = ttl, frames
-
-        self.set_animation('idle', itertools.repeat)
-        self.state.add('idle')
 
     def set_animation(self, name, func=None):
         self.animation_timer, animation = self.animations[name]
@@ -241,12 +293,12 @@ class CastleBatsSprite(pygame.sprite.Sprite):
 
 class Hero(CastleBatsSprite):
     sprite_sheet = 'elisa-spritesheet1.png'
-    name = 'hero'
     required_sounds = ['sword']
+    name = 'hero'
 
     image_animations = [
         ('idle',      100, ((10, 10, 34, 44, 15, 42), )),
-        ('attacking', 200, ((34, 254, 52, 52, 25, 48), )),
+        ('attacking', 250, ((34, 254, 52, 52, 15, 48), )),
         ('walking',   300, ((304, 132, 36, 40, 15, 38),
                             (190, 130, 28, 44, 14, 40),
                             (74, 132, 32, 40, 15, 38),
@@ -256,21 +308,29 @@ class Hero(CastleBatsSprite):
     def __init__(self):
         super().__init__()
         bbox = physics.BBox((0, 0, 0, 32, 32, 40))
-        self.body = physics.Body3(bbox, (0, 0), (0, 0), 0)
-        self.state = set()
-        self.alive = True
+        self.body = physics.Body3(bbox, (0, 0), (0, 0))
         self.load_animations()
         self.load_sounds()
-        self.set_animation('idle')
+        self.change_state('idle')
+
+    def update(self, dt):
+        super().update(dt)
 
     def change_state(self, state):
-        self.state.add(state)
+        self.state.append(state)
 
         if 'attacking' in self.state:
             self.sounds['sword'].stop()
             self.sounds['sword'].play()
             self.set_animation('attacking')
             self.state.remove('attacking')
+
+            temp = self.body.bbox[:3]
+            temp.extend((60, 60, 60))
+            bbox = physics.BBox(temp)
+            for actor in self.group.bboxcollide(bbox):
+                if actor is not self:
+                    actor.alive = False
 
         elif 'walking' in self.state:
             self.set_animation('walking', itertools.cycle)
@@ -288,7 +348,7 @@ class Hero(CastleBatsSprite):
         if abs(self.body.vel.z) < .1:
             try:
                 self.state.remove('jumping')
-            except KeyError:
+            except ValueError:
                 pass
 
         if 'idle' in self.state:
@@ -325,13 +385,32 @@ class Hero(CastleBatsSprite):
 
 
 class Bat(CastleBatsSprite):
-    pass
+    sprite_sheet = 'bat.png'
+    name = 'bat'
+
+    image_animations = [
+        ('flying',    700, ((8, 5, 19, 23, 15, 0), (42, 5, 19, 16, 16, 5))),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        bbox = physics.BBox((0, 0, 0, 20, 20, 20))
+        self.body = physics.Body3(bbox, (0, 0), (0, 0), False)
+        self.load_animations()
+        self.change_state('flying')
+
+    def change_state(self, state):
+        self.state.append(state)
+
+        if 'flying' in self.state:
+            self.set_animation('flying', itertools.cycle)
+
 
 if __name__ == '__main__':
-    pygame.init()
-    pygame.font.init()
-    screen = init_screen(900, 600)
+    screen = init_screen(900, 500)
     pygame.display.set_caption('Castle Bats')
+    pygame.font.init()
+    pygame.mixer.init(buffer=0)
 
     game = Game()
     try:
