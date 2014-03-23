@@ -460,7 +460,7 @@ class Vector3:
 
     __rmul__ = __mul__
 
-    @memoize
+    #@memoize
     def __imul__(self, other):
         assert type(other) in (int, float)
         self.x *= other
@@ -468,7 +468,7 @@ class Vector3:
         self.z *= other
         return self
 
-    @memoize
+    #@memoize
     def __div__(self, other):
         assert type(other) in (int, float)
         return Vector3(operator.div(self.x, other),
@@ -476,7 +476,7 @@ class Vector3:
                        operator.div(self.z, other))
 
 
-    @memoize
+    #@memoize
     def __rdiv__(self, other):
         assert type(other) in (int, float)
         return Vector3(operator.div(other, self.x),

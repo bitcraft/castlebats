@@ -76,7 +76,7 @@ class Game:
 
         self.tmx_data = load_map('level.tmx')
         map_data = pyscroll.TiledMapData(self.tmx_data)
-        self.map_layer = pyscroll.BufferedRenderer(map_data, self.buffer_size)
+        self.map_layer = pyscroll.BufferedRenderer(map_data, self.buffer_size, (0, 0, 0))
         self.bg = load_image('exterior-parallaxBG1.png')
 
         geometry = []
@@ -167,13 +167,14 @@ class Game:
         self.map_layer.center((y, z - 72))
         self.physicsgroup.update(dt)
 
-        if self.hero.body.bbox.bottom > 1800:
-            self.hero.alive = False
-
         with self.actors_lock:
             for actor in self.actors:
                 if actor.alive:
                     actor.update(dt)
+
+                if actor.body.bbox.bottom > 1800:
+                    actor.alive = False
+
                 # do not add else here
                 if not actor.alive:
                     self.remove_actor(actor)
@@ -202,7 +203,7 @@ class Game:
 
         try:
             while self.running:
-                td = clock.tick(40)
+                td = clock.tick(60)
                 self.handle_input()
                 self.update(td)
                 self.update(td)
@@ -219,7 +220,6 @@ class Game:
         # return actor colliding with another actor
         for body in self.physicsgroup.test_collision_bbox(actor.body.bbox):
             yield self.body_mapping[body]
-
 
     def bboxcollide(self, bbox):
         # return actor colliding with bbox
@@ -325,9 +325,12 @@ class Hero(CastleBatsSprite):
             self.set_animation('attacking')
             self.state.remove('attacking')
 
-            temp = self.body.bbox[:3]
-            temp.extend((60, 60, 60))
-            bbox = physics.BBox(temp)
+            x, y, z = self.body.bbox[:3]
+            x -= 30
+            y -= 30
+            z -= 30
+            d, w, h = 60, 60, 60
+            bbox = physics.BBox((x, y, z, d, w, h))
             for actor in self.group.bboxcollide(bbox):
                 if actor is not self:
                     actor.alive = False
@@ -395,7 +398,7 @@ class Bat(CastleBatsSprite):
     def __init__(self):
         super().__init__()
         bbox = physics.BBox((0, 0, 0, 20, 20, 20))
-        self.body = physics.Body3(bbox, (0, 0), (0, 0), False)
+        self.body = physics.Body3(bbox, (0, 0), (0, 0), gravity=False)
         self.load_animations()
         self.change_state('flying')
 
@@ -404,6 +407,7 @@ class Bat(CastleBatsSprite):
 
         if 'flying' in self.state:
             self.set_animation('flying', itertools.cycle)
+            #self.body.vel.y = 100
 
 
 if __name__ == '__main__':

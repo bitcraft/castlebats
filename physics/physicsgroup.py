@@ -72,7 +72,7 @@ class PhysicsGroup:
         self.sleeping = set()
         self.static_bodies = set()
         self.timestep = 0.0
-        self.gravity_delta = 00.0
+        self.gravity_delta = 0.0
         self.ground_friction = 0.0
         [self.scale_body(b, scaling) for b in self.bodies]
 
@@ -103,15 +103,12 @@ class PhysicsGroup:
         body.physicsgroup = self
 
     def remove(self, body):
-        print(body)
         self.bodies.remove(body)
 
     def update(self, td):
-        for body in (b for b in self.bodies if b not in self.sleeping):
-            if not body.gravity:
-                self.sleeping.add(body)
+        for body in self.bodies:
+            #print(body, body.vel, body.acc, body.gravity, self.timestep)
 
-            body.acc += self.gravity_delta
             body.vel += body.acc * self.timestep
             x, y, z = body.vel
 
@@ -135,7 +132,7 @@ class PhysicsGroup:
                         body.acc.y = 0.0
                         body.vel.y = 0.0
 
-            if z > 0:
+            if not z == 0:
                 if not self.move_body(body, (0, 0, z)):
                     if abs(body.vel.z) > .2:
                         body.acc.z = 0.0
@@ -144,12 +141,12 @@ class PhysicsGroup:
                         body.acc.z = 0.0
                         body.vel.z = 0.0
 
-            elif z < 0:
-                self.move_body(body, (0, 0, z))
+            #elif z < 0:
+            #    self.move_body(body, (0, 0, z))
 
-            if body.bbox.z == 0:
-                body.vel.x *= self.ground_friction
-                body.vel.y *= self.ground_friction
+            #if body.bbox.z == 0:
+            #    body.vel.x *= self.ground_friction
+            #    body.vel.y *= self.ground_friction
 
             if (round(body.vel.x, 4) ==
                 round(body.vel.y, 4) ==
@@ -162,9 +159,9 @@ class PhysicsGroup:
         except IndexError:
             pass
 
-    def set_timestep(self, time):
-        self.timestep = time
-        self.gravity_delta = self.gravity * time
+    def set_timestep(self, timestep):
+        self.timestep = timestep
+        self.gravity_delta = self.gravity * timestep
         self.ground_friction = pow(.0001, self.timestep)
 
     def move_body(self, body, point, clip=True):
