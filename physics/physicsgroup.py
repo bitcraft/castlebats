@@ -109,6 +109,9 @@ class PhysicsGroup:
         for body in self.bodies:
             #print(body, body.vel, body.acc, body.gravity, self.timestep)
 
+            if body.gravity:
+                body.acc += self.gravity_delta
+
             body.vel += body.acc * self.timestep
             x, y, z = body.vel
 

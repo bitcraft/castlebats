@@ -15,7 +15,7 @@ RESOURCE_PATH = 'resources'
 GRAVITY = 10.2
 TIMESTEP = 1/120.
 MOVE_POWER = 2
-JUMP_POWER = 3.5
+JUMP_POWER = 1.5
 TARGET_FPS = 40
 
 KEY_MAP = {
@@ -193,7 +193,7 @@ class Game:
         if self.time >= 5000:
             self.time -= 5000
             bat = Bat()
-            bat.body.bbox[:3] = (0, self.hero.body.bbox.y - 100, self.hero.body.bbox.z)
+            bat.body.bbox[:3] = (0, self.hero.body.bbox.y - 500, self.hero.body.bbox.z)
             self.add_actor(bat)
 
     def run(self):
@@ -401,13 +401,13 @@ class Bat(CastleBatsSprite):
         self.body = physics.Body3(bbox, (0, 0), (0, 0), gravity=False)
         self.load_animations()
         self.change_state('flying')
+        self.body.vel.y = 1.0
 
     def change_state(self, state):
         self.state.append(state)
 
         if 'flying' in self.state:
             self.set_animation('flying', itertools.cycle)
-            #self.body.vel.y = 100
 
 
 if __name__ == '__main__':
