@@ -471,7 +471,6 @@ class Vector3:
                        operator.div(self.y, other),
                        operator.div(self.z, other))
 
-
     def __rdiv__(self, other):
         assert type(other) in (int, float)
         return Vector3(operator.div(other, self.x),
