@@ -2,6 +2,7 @@ __author__ = 'leif'
 
 import os
 import pytmx
+import pytmx.tmxloader
 import pygame
 import physics
 import itertools
@@ -38,7 +39,8 @@ MUSIC_FILES = {
 
 
 def load_map(filename):
-    return pytmx.load_pygame(os.path.join(RESOURCE_PATH, filename))
+    return pytmx.tmxloader.load_pygame(
+        os.path.join(RESOURCE_PATH, filename), pixelalpha=False)
 
 
 def load_image(filename):
@@ -50,8 +52,11 @@ def load_sound(name):
 
 
 def play_music(name):
-    pygame.mixer.music.load(os.path.join(RESOURCE_PATH, MUSIC_FILES[name]))
-    pygame.mixer.music.play(-1)
+    try:
+        pygame.mixer.music.load(os.path.join(RESOURCE_PATH, MUSIC_FILES[name]))
+        pygame.mixer.music.play(-1)
+    except pygame.error:
+        pass
 
 
 # simple wrapper to keep the screen resizeable
@@ -80,7 +85,7 @@ class Game:
         self.bg = load_image('exterior-parallaxBG1.png')
 
         geometry = []
-        for obj in self.tmx_data.objectgroups[0]:
+        for obj in self.tmx_data.objects:
             bbox = (0, obj.x, obj.y, 0, obj.width, obj.height)
             geometry.append(bbox)
 
